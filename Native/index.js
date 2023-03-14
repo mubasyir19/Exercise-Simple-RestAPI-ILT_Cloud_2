@@ -1,66 +1,59 @@
 const http = require("http");
-const url = require("url");
-
 const contacts = require("./contacts");
 
-const server = http.createServer((req, res) => {
-  const parsedUrl = url.parse(req.url, true);
-  const endpoint = parsedUrl.pathname;
-  const query = parsedUrl.query;
+(async () => {
+  const server = http.createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
 
-  if (endpoint === "/contacts" && req.method === "GET") {
-    if (query.id) {
-      const dataObj = contacts.find((obj) => obj.id === parseInt(query.id));
-      if (dataObj) {
-        res.setHeader("Content-Type", "application/json");
-        res.statusCode = 200;
-        res.end(JSON.stringify(dataObj));
-      } else {
-        res.statusCode = 404;
-        res.end("Data object not found");
+    const { url } = request;
+
+    if (url === "/contacts") {
+      const { method } = request;
+
+      if (method === "POST") {
+        let body = "";
+
+        request.on("data", (chunk) => {
+          body += chunk.toString();
+        });
+
+        request.on("end", () => {
+          const { name, email, phone } = JSON.parse(body);
+          const id = contacts[contacts.length - 1].id + 1;
+          contacts.push({ id, name, email, phone });
+
+          response.statusCode = 201;
+          return response.end(JSON.stringify({ message: "Contact added successfully" }));
+        });
       }
-    } else {
-      res.setHeader("Content-Type", "application/json");
-      res.statusCode = 200;
-      res.end(JSON.stringify(contacts));
+
+      if (method === "GET") {
+        return response.end(JSON.stringify(contacts));
+      }
     }
-  } else if (endpoint === "/contacts" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    req.on("end", () => {
-      const newData = JSON.parse(body);
-      newData.id = contacts.length + 1;
-      contacts.push(newData);
-      res.setHeader("Content-Type", "application/json");
-      res.statusCode = 201;
-      res.end(JSON.stringify(newData));
-    });
-  } else if (endpoint === "/contacts" && req.method === "DELETE") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    req.on("end", () => {
-      const deletedData = JSON.parse(body);
-      const index = contacts.findIndex((obj) => obj.id === deletedData.id);
-      if (index >= 0) {
-        contacts.splice(index, 1);
-        res.setHeader("Content-Type", "application/json");
-        res.statusCode = 200;
-        res.end(JSON.stringify(deletedData));
-      } else {
-        res.statusCode = 404;
-        res.end("Data object not found");
-      }
-    });
-  } else {
-    res.statusCode = 404;
-    res.end("Endpoint not found");
-  }
-});
 
-server.listen(3000, () => {
-  console.log("Server started on port 3000");
-});
+    if (url.startsWith("/contacts/")) {
+      const { method } = request;
+
+      if (method === "DELETE") {
+        const id = request.url.split("/")[2];
+        const user = contacts.find((user) => user.id === parseInt(id));
+
+        if (user) {
+          const index = contacts.indexOf(user);
+          contacts.splice(index, 1);
+
+          response.statusCode = 200;
+          return response.end(JSON.stringify({ message: "Contact deleted successfully" }));
+        }
+
+        response.statusCode = 404;
+        return response.end(JSON.stringify({ message: "Contact not found" }));
+      }
+    }
+  });
+
+  server.listen(3000, "localhost", () => {
+    console.log("Server running on http://localhost:3000");
+  });
+})();
